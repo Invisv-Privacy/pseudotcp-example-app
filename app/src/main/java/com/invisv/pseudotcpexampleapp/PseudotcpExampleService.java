@@ -25,6 +25,7 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
     public static final String DISCONNECTION = "StopService";
     private static final String TAG = "PseudotcpExampleService";
     private static final int MAX_PACKET_SIZE = 32000;
+    private static final boolean verbose = false;
     private static String currentDefaultProxyFQDN = "proxy-fqdn";
     private static String currentDefaultProxyPort = "8444";
 
@@ -165,7 +166,7 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
 
             String proxyFQDN = currentDefaultProxyFQDN;
             String proxyPort = currentDefaultProxyPort;
-            Bindings.init((bytes, l) -> out.write(bytes, 0, (int) l), proxyFQDN, proxyPort);
+            Bindings.init((bytes, l) -> out.write(bytes, 0, (int) l), verbose, proxyFQDN, proxyPort);
 
             ByteBuffer packet = ByteBuffer.allocate(MAX_PACKET_SIZE);
             long packetCount = 0;
