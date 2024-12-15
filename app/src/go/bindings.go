@@ -25,13 +25,13 @@ func ProtectConnections(dnsServer string, protector SocketProtector) {
 }
 
 // Init should only be called after ProtectConnections.
-func Init(pktSender PacketSender, proxyFQDN string) error {
-	return pseudotcp.Init(pktSender.SendPacket, proxyFQDN)
+func Init(pktSender PacketSender, proxyFQDN, proxyPort string) error {
+	return pseudotcp.Init(pktSender.SendPacket, proxyFQDN, proxyPort)
 }
 
 // Reconnect should be only called when the vpn is active but possibly in need of reconnection.
-func Reconnect(proxyFQDN string) {
-	pseudotcp.ReconnectToProxy(proxyFQDN)
+func Reconnect(proxyFQDN, proxyPort string) {
+	pseudotcp.ReconnectToProxy(proxyFQDN, proxyPort)
 }
 
 // Send sends a packet out through the vpn.

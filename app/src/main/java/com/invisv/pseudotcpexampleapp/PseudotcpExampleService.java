@@ -26,6 +26,8 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
     private static final String TAG = "PseudotcpExampleService";
     private static final int MAX_PACKET_SIZE = 32000;
     private static String currentDefaultProxyFQDN = "proxy-fqdn";
+    private static String currentDefaultProxyPort = "8444";
+
     private static final String LOCAL_TUN_IP = "10.157.163.6";  // an IP unlikely to collide.
     private static Thread mThread;
     private static boolean running;
@@ -130,6 +132,7 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
         running = true;
         final VpnService vpn = this;
         Bindings.protectConnections("1.1.1.1", l -> {
+            Log.i(TAG, "Protecting connection: " + l);
             if (!vpn.protect((int) l)) {
                 throw new Exception("Failed to protect socket");
             }
@@ -161,7 +164,8 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
             final FileOutputStream out = new FileOutputStream(mInterface.getFileDescriptor());
 
             String proxyFQDN = currentDefaultProxyFQDN;
-            Bindings.init((bytes, l) -> out.write(bytes, 0, (int) l), proxyFQDN);
+            String proxyPort = currentDefaultProxyPort;
+            Bindings.init((bytes, l) -> out.write(bytes, 0, (int) l), proxyFQDN, proxyPort);
 
             ByteBuffer packet = ByteBuffer.allocate(MAX_PACKET_SIZE);
             long packetCount = 0;
