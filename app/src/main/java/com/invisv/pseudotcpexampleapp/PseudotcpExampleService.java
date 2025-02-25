@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import bindings.Bindings;
+import bindings.Client;
 
 public class PseudotcpExampleService extends VpnService implements Handler.Callback, Runnable {
     public static final String DISCONNECTION = "StopService";
@@ -132,12 +133,6 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
     private void runVPN() throws Exception {
         running = true;
         final VpnService vpn = this;
-        Bindings.protectConnections("1.1.1.1", l -> {
-            Log.i(TAG, "Protecting connection: " + l);
-            if (!vpn.protect((int) l)) {
-                throw new Exception("Failed to protect socket");
-            }
-        });
 
         try {
             // Configure a new interface from our VpnService instance. This must be done
@@ -166,7 +161,16 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
 
             String proxyFQDN = currentDefaultProxyFQDN;
             String proxyPort = currentDefaultProxyPort;
-            Bindings.init((bytes, l) -> out.write(bytes, 0, (int) l), verbose, proxyFQDN, proxyPort);
+
+            Client client = Bindings.newClient(
+                    (bytes, l) -> out.write(bytes, 0, (int) l),
+                    l -> {
+                        Log.i(TAG, "Protecting connection: " + l);
+                        if (!vpn.protect((int) l)) {
+                            throw new Exception("Failed to protect socket");
+                        }
+                    }, proxyFQDN, proxyPort, verbose);
+            client.init();
 
             ByteBuffer packet = ByteBuffer.allocate(MAX_PACKET_SIZE);
             long packetCount = 0;
@@ -176,7 +180,7 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
                 if (length > 0) {
                     packet.limit(length);
                     packet.rewind();
-                    Bindings.send(packet.array(), length);
+                    client.send(packet.array(), length);
                     packet.clear();
 
                 }
