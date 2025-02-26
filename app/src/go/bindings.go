@@ -57,7 +57,7 @@ type client struct {
 	logger *slog.Logger
 }
 
-func NewClient(sendPacket PacketSender, protector SocketProtector, proxyFQDN, proxyPort string, verbose bool) Client {
+func NewClient(sendPacket PacketSender, protector SocketProtector, proxyIP, proxyPort string, verbose bool) Client {
 	level := slog.LevelInfo
 	if verbose {
 		level = slog.LevelDebug
@@ -68,7 +68,7 @@ func NewClient(sendPacket PacketSender, protector SocketProtector, proxyFQDN, pr
 	slog.SetDefault(logger)
 
 	config := masqueH2.ClientConfig{
-		ProxyAddr:  proxyFQDN + ":" + proxyPort,
+		ProxyAddr:  proxyIP + ":" + proxyPort,
 		IgnoreCert: true,
 		Logger:     logger,
 		AuthToken:  "fake-token",
@@ -77,7 +77,7 @@ func NewClient(sendPacket PacketSender, protector SocketProtector, proxyFQDN, pr
 
 	proxyClient := &ProxyClient{
 		Client:  masqueH2.NewClient(config),
-		ProxyIP: proxyFQDN,
+		ProxyIP: proxyIP,
 	}
 
 	pTCPConfig := &pseudotcp.PseudoTCPConfig{

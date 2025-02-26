@@ -27,8 +27,8 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
     private static final String TAG = "PseudotcpExampleService";
     private static final int MAX_PACKET_SIZE = 32000;
     private static final boolean verbose = false;
-    private static String currentDefaultProxyFQDN = "proxy-fqdn";
-    private static String currentDefaultProxyPort = "8444";
+    private static String proxyIP = "127.0.0.1";
+    private static String proxyPort = "8444";
 
     private static final String LOCAL_TUN_IP = "10.157.163.6";  // an IP unlikely to collide.
     private static Thread mThread;
@@ -55,15 +55,6 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
         running = false;
     }
 
-    /**
-     * Configures which proxy to use upon next start.
-     *
-     * @param fqdn the FQDN of the proxy to use
-     */
-    public static void setDefaultProxyFQDN(String fqdn) {
-        currentDefaultProxyFQDN = fqdn;
-    }
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && DISCONNECTION.equals(intent.getAction())) {
@@ -76,6 +67,10 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
             return START_NOT_STICKY;
         }
 
+        if (intent != null) {
+            proxyIP = intent.getStringExtra("IP");
+            proxyPort = intent.getStringExtra("PORT");
+        }
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = new Handler(this);
@@ -159,9 +154,6 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
             // Packets received need to be written to this output stream.
             final FileOutputStream out = new FileOutputStream(mInterface.getFileDescriptor());
 
-            String proxyFQDN = currentDefaultProxyFQDN;
-            String proxyPort = currentDefaultProxyPort;
-
             Client client = Bindings.newClient(
                     (bytes, l) -> out.write(bytes, 0, (int) l),
                     l -> {
@@ -169,7 +161,7 @@ public class PseudotcpExampleService extends VpnService implements Handler.Callb
                         if (!vpn.protect((int) l)) {
                             throw new Exception("Failed to protect socket");
                         }
-                    }, proxyFQDN, proxyPort, verbose);
+                    }, proxyIP, proxyPort, verbose);
             client.init();
 
             ByteBuffer packet = ByteBuffer.allocate(MAX_PACKET_SIZE);
