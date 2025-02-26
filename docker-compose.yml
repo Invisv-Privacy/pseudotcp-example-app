@@ -1,0 +1,53 @@
+version: "3.3"
+
+services:
+  h2o:
+    build: ./testdata/h2o
+    ports:
+      - "8081:8081/tcp"
+      - "8444:8444/tcp"
+      - "8444:8444/udp"
+    networks:
+      intra:
+        ipv4_address: 172.25.0.3
+    # Using Volumes here instead of COPYing in the Dockerfile allows us to make changes to configuration files and/or
+    # certs without needing to re-build the container image
+    volumes: 
+      - type: bind
+        source: ./testdata/h2o/connect.conf
+        target: /etc/h2o/connect.conf
+
+      - type: bind
+        source: ./testdata/h2o/server.key
+        target: /etc/h2o/server.key
+
+      - type: bind
+        source: ./testdata/h2o/server.crt
+        target: /etc/h2o/server.crt
+
+  echo-server:
+    image: mendhak/http-https-echo:35
+    networks:
+      intra:
+        ipv4_address: 172.25.0.4
+    ports:
+      - "8080:8080/tcp"
+      - "8443:8443/tcp"
+    volumes: 
+      - type: bind
+        source: ./testdata/h2o/server.key
+        target: /app/privkey.pem
+
+      - type: bind
+        source: ./testdata/h2o/server.crt
+        target: /app/fullchain.pem
+
+networks:
+  intra:
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24
+          ip_range: 172.25.0.0/24
+          gateway: 172.25.0.1
+
+
