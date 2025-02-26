@@ -1,0 +1,99 @@
+name: End2End Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CI: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+        # It seems like free disk space is often an issue w/ the android emulator action
+      - name: Free up some disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: false # Don't remove Android tools
+          tool-cache: true
+          dotnet: true
+          haskell: true
+          swap-storage: true
+          docker-images: false
+          large-packages: false
+
+      - name: Setup docker services
+        uses: hoverkraft-tech/compose-action@v2.2.0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v1
+        with:
+          java-version: 17
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.23.6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+        # For android emulation
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-33
+
+      - name: Install gomobile
+        run: go install golang.org/x/mobile/cmd/gomobile@latest
+
+      - name: Initalize gomobile
+        run: gomobile init
+        working-directory: ./app/src/go
+
+      - name: Get gomobile bind
+        run: go get golang.org/x/mobile/bind
+        working-directory: ./app/src/go
+
+      - name: Build go code w/ gomobile
+        run: ./build.sh
+        working-directory: ./app/src/go
+
+      - name: Run end2end test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+
+          # For getting relevant output from logcat in the github actions logs
+          script: adb logcat "System.out:D End2EndTest:D *:S" & LOGCAT_PID=$! ; ./gradlew connectedAndroidTest ; test_ret=$? ; if [ -n "$LOGCAT_PID" ] ; then kill $LOGCAT_PID; fi; exit $test_ret
+
+      - name: Upload Android end2end results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-end2end-results
+          path: app/build/reports/androidTests/connected

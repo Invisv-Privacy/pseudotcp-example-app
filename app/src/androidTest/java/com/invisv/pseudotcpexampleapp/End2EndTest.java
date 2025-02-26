@@ -34,11 +34,17 @@ public class End2EndTest {
             = "com.invisv.pseudotcpexampleapp";
 
     private static final String PROXY_IP = "172.25.0.3";
+    private static final String HOST_IP = "172.25.0.1";
     private static final String PROXY_PORT = "8444";
     private static final String ECHO_SERVER_URL = "http://172.25.0.4:8080";
     private static final String VPN_DIALOG_PACKAGE = "com.android.vpndialogs";
-    private static final int LAUNCH_TIMEOUT = 5000;
-    private static final int TRANSITION_TIMEOUT = 5000;
+
+    // These timeouts are essentially worst case scenarios generally for CI since the emulator
+    // is so slow in those environments
+    private static final int LAUNCH_TIMEOUT = 10000;
+    private static final int TRANSITION_TIMEOUT = 10000;
+    private static final int LOADING_TIMEOUT = 20000;
+
 
     private UiDevice device;
 
@@ -51,10 +57,74 @@ public class End2EndTest {
         // Initialize UiDevice instance
         device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
 
+        // Start from the home screen
+        device.pressHome();
+
+        // In CI tests it seems like we're getting a fresh device where chrome needs to go through the main screen
+        // so we have to automate clicking through those :/
+        String res = device.executeShellCommand("am start -a android.intent.action.VIEW -d " + ECHO_SERVER_URL);
+        Log.i(TAG, res);
+
+        device.wait(Until.hasObject(By.textContains("headers")), TRANSITION_TIMEOUT);
+        UiObject2 echoServerContent = device.findObject(By.textContains("headers"));
+
+        boolean needToWaitForInitialDialogs = (echoServerContent == null);
+        Log.i(TAG, "needToWaitForInitialDialogs: " + needToWaitForInitialDialogs);
+
+        if (needToWaitForInitialDialogs) {
+            Log.i(TAG, "Waiting for Accept and Continue button");
+            device.dumpWindowHierarchy(System.out);
+
+            device.wait(Until.hasObject(By.textContains("Accept")), TRANSITION_TIMEOUT);
+            UiObject2 acceptAndContinueButton = device.findObject(By.textContains("Accept"));
+            Log.i(TAG, "acceptAndContinueButton: " + acceptAndContinueButton);
+
+            if (acceptAndContinueButton != null) {
+                acceptAndContinueButton.click();
+                Log.i(TAG, "Clicked acceptAndContinue button");
+            }
+
+            device.wait(Until.hasObject(By.textContains("No thanks")), TRANSITION_TIMEOUT);
+            UiObject2 noThanksButton = device.findObject(By.textContains("No thanks"));
+            Log.i(TAG, "noThanksButton: " + noThanksButton);
+
+            if (noThanksButton != null) {
+                noThanksButton.click();
+                Log.i(TAG, "Clicked no thanks button");
+            }
+
+            Log.i(TAG, "Waiting for Use without an account button");
+            device.dumpWindowHierarchy(System.out);
+
+            device.wait(Until.hasObject(By.text("Use without an account")), TRANSITION_TIMEOUT);
+            UiObject2 useWithoutAccountButton = device.findObject(By.text("Use without an account"));
+            Log.i(TAG, "useWithoutAccountButton: " + useWithoutAccountButton);
+
+            if (useWithoutAccountButton != null) {
+                useWithoutAccountButton.click();
+                Log.i(TAG, "Clicked without account button");
+            }
+
+            Log.i(TAG, "Waiting for Continue button");
+            device.dumpWindowHierarchy(System.out);
+
+            device.wait(Until.hasObject(By.text("Continue")), TRANSITION_TIMEOUT);
+
+            Log.i(TAG, "Waited for Continue button");
+            UiObject2 continueButton = device.findObject(By.text("Continue"));
+            Log.i(TAG, "continueButton: " + continueButton);
+
+            if (continueButton != null) {
+                continueButton.click();
+                Log.i(TAG, "Clicked continue");
+            }
+        }
+
         // Get IP of device before running VPN
         initialIP = getIP();
 
-        // Start from the home screen
+        assertTrue("Initial request IP is direct from Host", initialIP.contains(HOST_IP));
+
         device.pressHome();
 
         // Wait for launcher
@@ -83,11 +153,14 @@ public class End2EndTest {
         String res = device.executeShellCommand("am start -a android.intent.action.VIEW -d " + ECHO_SERVER_URL);
         Log.d(TAG, "res: " + res);
 
-        device.wait(Until.hasObject(By.textContains("headers")), LAUNCH_TIMEOUT);
+        Log.i(TAG, "Waiting for headers string");
+        device.dumpWindowHierarchy(System.out);
+        device.wait(Until.hasObject(By.textContains("headers")), LOADING_TIMEOUT);
+        Log.i(TAG, "Waited for headers string");
+        device.dumpWindowHierarchy(System.out);
 
         // The echo server output includes the string "headers", this is a little lazy but good enough for our use case
         UiObject2 browserText = device.findObject(By.textContains("headers"));
-
         String browserContent = browserText.getText();
 
         // The echo server output is a JSON string
@@ -128,6 +201,6 @@ public class End2EndTest {
         String newIP = getIP();
 
         // Assert that it's now changed
-        assertNotEquals(newIP, initialIP);
+        assertTrue("New IP is of proxy", newIP.contains(PROXY_IP));
     }
 }
