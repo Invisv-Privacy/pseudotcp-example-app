@@ -16,6 +16,41 @@ At that point, like it says, use the "sync project with gradle files" command in
 ## Test
 This repo includes a full end2end test for exercising the entire network stack, from android VPN service code -> gomobile bindings -> pseudotcp -> masque client.
 
+The testing architecture looks like this:
+```
+┌──────────────────────────────┐           ┌──────────────────────────────────┐
+│                              │           │  Docker containers               │
+│ Android Emulator (qemu)      │           │   ┌─────────────────────────┐    │
+│                              │           │   │ Echo server             │    │
+│  ┌───────────────────────┐   │           │   │                         │    │
+│  │  PseudotcpExampleApp  │   │           │   │                         │    │
+│  │                       │   │           │   │                         │    │
+│  └─────────┬─────────────┘   │           │   │   172.25.0.4            │    │
+│            │                 │           │   │                         │    │
+│  ┌─────────▼─────────────┐   │           │   │                         │    │
+│  │  gomobile bindings    │   │           │   │                         │    │
+│  │                       │   │           │   └───────────▲─────────────┘    │
+│  └─────────┬─────────────┘   │           │               │                  │
+│            │                 │           │               │                  │
+│  ┌─────────▼─────────────┐   │           │   ┌───────────┼─────────────┐    │
+│  │     pseudotcp         │   │           │   │ h2o MASQUE Proxy        │    │
+│  │                       │   │           │   │                         │    │
+│  └─────────┬─────────────┘   │           │   │                         │    │
+│            │                 │           │   │                         │    │
+│  ┌─────────▼─────────────┐   │           │   │    172.25.0.3           │    │
+│  │    masque client      │   │           │   │                         │    │
+│  │                       ┼───┼───────────┼──►│                         │    │
+│  └───────────────────────┘   │           │   └─────────────────────────┘    │
+└──────────────────────────────┘           └──────────────────────────────────┘
+```
+
+The emulator uses qemu and a base android image to create a virtualized android device. We then use the [uiautomator](https://developer.android.com/training/testing/other-components/ui-automator) tool to perform actions on the device, replicating actual user usage.
+
+We use docker to run an [h2o](https://github.com/h2o/h2o) MASQUE proxy and another very simple echo server. The echo server responds to HTTP requests with information about the HTTP request, including the request IP.
+
+Inside the automated test we can then start, check our initial reported IP, enable our sample app service, check our reported IP, and assert that the new reported IP is that of the proxy, prving that packets from the android host device are now passing through the MASQUE proxy as expected.
+
+### Running
 In order to run the test you must first start the dockerized h2o server and the echo server:
 
 ```sh
@@ -46,4 +81,8 @@ BUILD SUCCESSFUL in 37s
 
 An html report will be then placed in `app/build/reports/androidTests/connected/debug/com.invisv.pseudotcpexampleapp.End2EndTest.html`
 
+`stdout` will not be outputted on the command line. In order to get logging and `stdout` from the automated test, you can use the [same command we use for CI](./.github/workflows/end2endtest.yml#92):
 
+```sh
+$ adb logcat "System.out:D End2EndTest:D *:S" & LOGCAT_PID=$! ; ./gradlew connectedAndroidTest ; test_ret=$? ; if [ -n "$LOGCAT_PID" ] ; then kill $LOGCAT_PID; fi; exit $test_ret
+```
