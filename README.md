@@ -1,22 +1,66 @@
-# Pseudotcp Example Apps
+# 🔒 Pseudotcp Example App
 
-This is an example android app which uses [Android's VPN APIs](https://developer.android.com/develop/connectivity/vpn) and gomobile bindings in order to demonstrate the integration with and utility of Invisv's pseudotcp library.
+[![Build Status](https://img.shields.io/github/actions/workflow/status/invisv-privacy/pseudotcp-example-app/end2endtest.yml?branch=main&style=flat-square)](https://github.com/invisv-privacy/pseudotcp-example-app/actions)
+[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
+An Android example application demonstrating the integration of [Invisv's pseudotcp library](https://github.com/invisv/pseudotcp) using [Android's VPN APIs](https://developer.android.com/develop/connectivity/vpn) and gomobile bindings.
 
-## Build
-The go code is built with [gomobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile). You can use the [build.sh](./app/src/go/build.sh) script for convenience:
-```
+## 🔍 Overview
+
+This application demonstrates how to implement a VPN service in Android that routes traffic through a MASQUE proxy using the pseudotcp library. It showcases:
+
+- Integration with Android's VPN Service API
+- Go-to-Java bindings using gomobile
+- Implementation of pseudotcp for reliable transport
+- MASQUE client for proxy communication
+
+<img alt="Pseudotcp example app screenshot" src="./screenshot.png" height=600 />
+
+## 🛠️ Prerequisites
+
+- Android Studio (latest version recommended)
+- Go 1.23 or later
+- [gomobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile)
+- Docker (for testing)
+- Android SDK with API level 33 or higher
+
+## 🏗️ Building
+
+### Building the Go Code
+
+The Go code is built with [gomobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile). Use the provided build script:
+
+```bash
 $ cd app/src/go
-app/src/go $ build.sh
-Running gomobile bind...
-Moved .aar to Android libs. REMEMBER to sync project with gradle files in Android!
+$ ./build.sh
 ```
-At that point, like it says, use the "sync project with gradle files" command in android studio in order for it to reload the newly built .aar library.
 
-## Test
-This repo includes a full end2end test for exercising the entire network stack, from android VPN service code -> gomobile bindings -> pseudotcp -> masque client.
+This will generate an `.aar` file and move it to the appropriate Android libs directory.
 
-The testing architecture looks like this:
+> **Important**: After building the Go code, remember to sync your project with Gradle files in Android Studio to reload the newly built library.
+
+### Building the Android App
+
+Open the project in Android Studio and build the app using the standard build process:
+
+```bash
+$ ./gradlew assembleDebug
+```
+
+## 📱 Usage
+
+1. Install the app on your Android device or emulator
+2. Launch the app
+3. Enter the proxy IP and port (defaults to 127.0.0.1:8444)
+4. Toggle the switch to enable/disable the VPN service
+5. The app will route all traffic through the specified MASQUE proxy
+
+## 🧪 Testing
+
+This repo includes a comprehensive end-to-end test that exercises the entire network stack.
+
+### Testing Architecture
+
 ```
 ┌──────────────────────────────┐           ┌──────────────────────────────────┐
 │                              │           │  Docker containers               │
@@ -48,41 +92,37 @@ The emulator uses qemu and a base android image to create a virtualized android 
 
 We use docker to run an [h2o](https://github.com/h2o/h2o) MASQUE proxy and another very simple echo server. The echo server responds to HTTP requests with information about the HTTP request, including the request IP.
 
-Inside the automated test we can then start, check our initial reported IP, enable our sample app service, check our reported IP, and assert that the new reported IP is that of the proxy, prving that packets from the android host device are now passing through the MASQUE proxy as expected.
+Inside the automated test we can then start, check our initial reported IP, enable our sample app service, check our reported IP, and assert that the new reported IP is that of the proxy, proving that packets from the android host device are now passing through the MASQUE proxy as expected.
 
-### Running
-In order to run the test you must first start the dockerized h2o server and the echo server:
+### Setting Up the Test Environment
 
-```sh
+Start the dockerized h2o server and echo server:
+
+```bash
 $ docker-compose up -d
 ```
 
-The [docker-compose file](./docker-compose.yml) includes a custom network with a subnet of `172.25.0.0/24` assuming that range is unlikely to be used elsewhere. If that clashes with your network environment, you'll need to update the addresses in the docker-compose file as well as in the [end2end test](./app/src/androidTest/java/com/invisv/pseudotcpexampleapp/End2EndTest.java).
+The [docker-compose file](./docker-compose.yml) creates a custom network with subnet `172.25.0.0/24`. If this conflicts with your network, update the addresses in both the docker-compose file and the [end2end test](./app/src/androidTest/java/com/invisv/pseudotcpexampleapp/End2EndTest.java).
 
-After starting the docker services, you can then run the test. You'll need an actual device to run it on, whether that's qemu emulated or an actual physical device. [Android studio makes creating qemu emulated devices quite simple](https://developer.android.com/studio/run/managing-avds).
+### Running Tests
 
-Once you have an android device running, you can run the test through the Android Studio IDE or from the command line:
+You can run tests through Android Studio or from the command line:
 
-```sh
+```bash
 $ ./gradlew connectedAndroidTest
-Starting a Gradle Daemon (subsequent builds will be faster)
-
-> Configure project :app
-
-> Task :app:connectedDebugAndroidTest
-Starting 1 tests on Pixel_5_API_33(AVD) - 13
-
-Pixel_5_API_33(AVD) - 13 Tests 0/1 completed. (0 skipped) (0 failed)
-Finished 1 tests on Pixel_5_API_33(AVD) - 13
-
-BUILD SUCCESSFUL in 37s
-61 actionable tasks: 11 executed, 50 up-to-date
 ```
 
-An html report will be then placed in `app/build/reports/androidTests/connected/debug/com.invisv.pseudotcpexampleapp.End2EndTest.html`
+An HTML report will be generated at:
+`app/build/reports/androidTests/connected/debug/com.invisv.pseudotcpexampleapp.End2EndTest.html`
 
-`stdout` will not be outputted on the command line. In order to get logging and `stdout` from the automated test, you can use the [same command we use for CI](./.github/workflows/end2endtest.yml#92):
+### Viewing Test Logs
 
-```sh
-$ adb logcat "System.out:D End2EndTest:D *:S" & LOGCAT_PID=$! ; ./gradlew connectedAndroidTest ; test_ret=$? ; if [ -n "$LOGCAT_PID" ] ; then kill $LOGCAT_PID; fi; exit $test_ret
+To capture logs during test execution:
+
+```bash
+$ adb logcat "System.out:D End2EndTest:D *:S" & LOGCAT_PID=$! ; \
+  ./gradlew connectedAndroidTest ; \
+  test_ret=$? ; \
+  if [ -n "$LOGCAT_PID" ] ; then kill $LOGCAT_PID; fi; \
+  exit $test_ret
 ```
